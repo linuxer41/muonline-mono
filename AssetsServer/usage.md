@@ -25,7 +25,7 @@ By default, the application looks for files in the `./Data` folder and stores th
 You can serve the ZIP files as a web server by running the `http-server` command in the terminal. This will start a local web server on port 8080.
 
 ```bash
-http-server
+http-server --port 8080
 ```
 
 **Note**: The `http-server` command is not included in the project by default. You can install it using `npm install http-server -g`.

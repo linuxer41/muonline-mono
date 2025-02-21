@@ -10,6 +10,7 @@ using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.IO.Compression;
+using System.Linq;
 
 namespace Client.Main.Scenes
 {
@@ -35,6 +36,7 @@ namespace Client.Main.Scenes
 
     public class LoadScene : BaseScene
     {
+        private LabelControl _stepLabel;
         private LabelControl _statusLabel;
         private float _progress; // Valor entre 0 y 1
         private string _statusText;
@@ -54,6 +56,10 @@ namespace Client.Main.Scenes
 
         private string pathUrl = Constants.PathUrl;
 
+        private string localIndexPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "index.json");
+        private string localFilesPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "files.json");
+        private string extractPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
+
         public LoadScene()
         {
             _progress = 0f;
@@ -70,7 +76,17 @@ namespace Client.Main.Scenes
                 TextColor = Color.White
             };
 
+            _stepLabel = new LabelControl
+            {
+                Text = "Step 1/3  Checking version...",
+                X = 50,
+                Y = MuGame.Instance.Height - 70, // Ajustar posición según la altura de la ventana
+                FontSize = 12,
+                TextColor = Color.White
+            };
+
             // Agregar controles a la escena
+            Controls.Add(_stepLabel);
             Controls.Add(_statusLabel);
         }
 
@@ -97,142 +113,16 @@ namespace Client.Main.Scenes
         public override void AfterLoad()
         {
             base.AfterLoad();
-
-            // Comprobar si la carpeta Data ya existe
-            string extractPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
-            Console.WriteLine($"ExtractPath: {extractPath}");
-
-            StartDownloadingAssetsHTTP();
+            StartDownloadingAssets();
         }
 
-        private async void StartDownloadingAssetsHTTP()
+        private async void StartDownloadingAssets()
         {
-            
-            string localIndexPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "index.json");
-            string localFilesPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "files.json");
-            string extractPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
-
             try
             {
-                _statusText = "Checking index.json...";
-                _statusLabel.Text = _statusText;
-
-                // Paso 1: Descargar index.json del servidor
-                string indexContent = await DownloadStringAsync($"{pathUrl}index.json");
-                Console.WriteLine(indexContent);
-                var options = new JsonSerializerOptions
-                {
-                    
-                    PropertyNameCaseInsensitive = true,
-                    AllowTrailingCommas = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                    WriteIndented = true
-                };
-                var indexData = JsonSerializer.Deserialize<Metadata>(indexContent, MetadataContext.Default.Metadata);
-
-                // Paso 2: Verificar si el archivo index.json local existe y comparar versiones
-                if (File.Exists(localIndexPath))
-                {
-                    string localIndexContent = await File.ReadAllTextAsync(localIndexPath);
-                    var localIndexData = JsonSerializer.Deserialize<Metadata>(localIndexContent, MetadataContext.Default.Metadata);
-
-                    if (localIndexData.Version >= indexData.Version)
-                    {
-                        _statusText = "Assets are up to date. Skipping download.";
-                        _statusLabel.Text = _statusText;
-                        await Task.Delay(1000);
-                        MuGame.Instance.ChangeScene<LoginScene>();
-                        return;
-                    }
-                }
-                int totalFiles = indexData.Files.Count;
-                int downloadedFiles = 0;
-                long downloadedBytes = 0;
-
-                    _statusText = $"Downloading {totalFiles} assets...";
-                    _statusLabel.Text = _statusText;
-
-                // downoloas zips
-                foreach (var file in indexData.Files)
-                {
-                    string fileName = file.Path;
-                    string filePath = Path.Combine(extractPath, fileName);
-                    string fileUrl = $"{pathUrl}Assets/{fileName}";
-                    Console.WriteLine($"Downloading {fileName}");
-                                            // Crear directorios si es necesario
-                    Directory.CreateDirectory(Path.GetDirectoryName(filePath));
-
-                    // Descargar el archivo
-                    (downloadedBytes, downloadedFiles) = await DownloadFileWithProgress(
-                                fileUrl, filePath, indexData.TotalSize, downloadedBytes, downloadedFiles, totalFiles);
-                    
-                    // save zip and extract
-                    string zipPath = Path.Combine(extractPath, fileName);
-                    await ExtractWithProgress(zipPath, extractPath);
-                }
-                bool downloadSingleFile = false;
-                // if (downloadSingleFile){
-
-                //     // Paso 3: Descargar files.json del servidor
-                //     string filesContent = await DownloadStringAsync($"{pathUrl}Assets/files.json");
-                //     var filesData = JsonSerializer.Deserialize<Metadata>(filesContent,  MetadataContext.Default.Metadata);
-                //     Console.WriteLine($"Downloaded files.json");
-                //     Console.WriteLine(filesData);
-
-                //     // Paso 4: Comparar archivos locales con los del servidor
-                //     List<FileMetadata> missingOrUpdatedFiles = new List<FileMetadata>();
-                //     foreach (var file in filesData.Files)
-                //     {
-                //         string localFilePath = Path.Combine(extractPath, file.Path);
-                //         if (!File.Exists(localFilePath) || new FileInfo(localFilePath).Length != file.Size)
-                //         {
-                //             missingOrUpdatedFiles.Add(file);
-                //         }
-                //     }
-
-                //     // Paso 5: Si todos los archivos existen y están actualizados, no hacer nada
-                //     if (missingOrUpdatedFiles.Count == 0)
-                //     {
-                //         _statusText = "All assets are up to date.";
-                //         _statusLabel.Text = _statusText;
-                //         await Task.Delay(1000);
-                //         MuGame.Instance.ChangeScene<LoginScene>();
-                //         return;
-                //     }
-
-                //     // Paso 6: Descargar archivos faltantes o actualizados
-                //     int totalFiles = missingOrUpdatedFiles.Count;
-                //     int downloadedFiles = 0;
-                //     long downloadedBytes = 0;
-
-                //     _statusText = $"Downloading {totalFiles} assets...";
-                //     _statusLabel.Text = _statusText;
-
-                //     foreach (var file in missingOrUpdatedFiles)
-                //     {
-                //         string fileName = file.Path;
-                //         string filePath = Path.Combine(extractPath, fileName);
-                //         string fileUrl = $"{pathUrl}Assets/{fileName}";
-                //         Console.WriteLine($"Downloading {fileName}");
-
-                //         // Crear directorios si es necesario
-                //         Directory.CreateDirectory(Path.GetDirectoryName(filePath));
-
-                //         // Descargar el archivo
-                //     (downloadedBytes, downloadedFiles) = await DownloadFileWithProgress(
-                //                 fileUrl, filePath, indexData.TotalSize, downloadedBytes, downloadedFiles, totalFiles);
-                //     }
-                //     await File.WriteAllTextAsync(localFilesPath, filesContent);
-                // }
-                // Paso 7: Guardar index.json y files.json localmente
-                await File.WriteAllTextAsync(localIndexPath, indexContent);
-                
-
-                // Finalizar
-                _isDownloadComplete = true;
-                _statusText = "Download complete!";
-                _statusLabel.Text = _statusText;
+                Console.WriteLine($"ExtractPath: {extractPath}");
+                await DownloadZipAssets();
+                await VerifyIndividualAssets();
 
                 await Task.Delay(500);
                 MuGame.Instance.ChangeScene<LoginScene>();
@@ -243,6 +133,118 @@ namespace Client.Main.Scenes
                 _statusText = $"Download failed! {ex.Message}";
                 _statusLabel.Text = _statusText;
             }
+        }
+
+        private async Task DownloadZipAssets()
+        {
+            _stepLabel.Text = "Step 2/3  Downloading zip assets...";
+            string indexContent = await DownloadStringAsync($"{pathUrl}/index.json");
+            Console.WriteLine(indexContent);
+            var options = new JsonSerializerOptions
+            {
+
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = true
+            };
+            var indexData = JsonSerializer.Deserialize<Metadata>(indexContent, MetadataContext.Default.Metadata);
+
+            // Paso 2: Verificar si el archivo index.json local existe y comparar versiones
+            if (File.Exists(localIndexPath))
+            {
+                string localIndexContent = await File.ReadAllTextAsync(localIndexPath);
+                var localIndexData = JsonSerializer.Deserialize<Metadata>(localIndexContent, MetadataContext.Default.Metadata);
+
+                if (localIndexData.Version >= indexData.Version)
+                {
+                    _statusText = "Assets are up to date. Skipping download.";
+                    _statusLabel.Text = _statusText;
+                    return;
+                }
+            }
+
+            int totalFiles = indexData.Files.Count;
+            int downloadedFiles = 0;
+            long downloadedBytes = 0;
+
+            _statusText = $"Downloading {totalFiles} assets...";
+            _statusLabel.Text = _statusText;
+
+            foreach (var file in indexData.Files)
+            {
+                string fileName = file.Path;
+                string filePath = Path.Combine(extractPath, fileName);
+                string fileUrl = $"{pathUrl}/Assets/{fileName}";
+                Console.WriteLine($"Downloading {fileName}");
+
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+
+                (downloadedBytes, downloadedFiles) = await DownloadFileWithProgress(
+                    fileUrl, filePath, indexData.TotalSize, downloadedBytes, downloadedFiles, totalFiles);
+                    
+                string zipPath = Path.Combine(extractPath, fileName);
+                // extract zip in background thread, if is the last file extrar in main thread
+                if (file == indexData.Files.Last())
+                {
+
+                    await ExtractWithProgress(zipPath, extractPath);
+                }
+                else
+                {
+                    // extract zip in background thread
+                    _ = Task.Run(() => ExtractWithProgress(zipPath, extractPath));
+                }
+            }
+            await File.WriteAllTextAsync(localIndexPath, indexContent);
+        }
+
+        private async Task VerifyIndividualAssets()
+        {
+             _stepLabel.Text = "Step 3/3  Downloading missing assets...";
+            string filesContent = await DownloadStringAsync($"{pathUrl}/Assets/files.json");
+            var filesData = JsonSerializer.Deserialize<Metadata>(filesContent, MetadataContext.Default.Metadata);
+            Console.WriteLine($"Downloaded files.json");
+            Console.WriteLine(filesData);
+            List<FileMetadata> missingOrUpdatedFiles = new List<FileMetadata>();
+            foreach (var file in filesData.Files)
+            {
+                string localFilePath = Path.Combine(extractPath, file.Path);
+                if (!File.Exists(localFilePath) || new FileInfo(localFilePath).Length != file.Size)
+                {
+                    missingOrUpdatedFiles.Add(file);
+                }
+            }
+            if (missingOrUpdatedFiles.Count == 0)
+            {
+                _statusText = "All assets are up to date.";
+                _statusLabel.Text = _statusText;
+            }
+
+            int totalFiles = missingOrUpdatedFiles.Count;
+            long totalSize = missingOrUpdatedFiles.Sum(x => x.Size);
+            int downloadedFiles = 0;
+            long downloadedBytes = 0;
+
+            _statusText = $"Downloading incomplete assets...";
+            _statusLabel.Text = _statusText;
+
+            foreach (var file in missingOrUpdatedFiles)
+            {
+                string fileName = file.Path;
+                string filePath = Path.Combine(extractPath, fileName);
+                string fileUrl = $"{pathUrl}/Data/{fileName}";
+                Console.WriteLine($"Downloading {fileUrl}");
+
+                // Crear directorios si es necesario
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+
+                // Descargar el archivo
+                (downloadedBytes, downloadedFiles) = await DownloadFileWithProgress(
+                    fileUrl, filePath, totalSize, downloadedBytes, downloadedFiles, totalFiles);
+            }
+            await File.WriteAllTextAsync(localFilesPath, filesContent);
         }
 
         private async Task<string> DownloadStringAsync(string url)
@@ -280,7 +282,8 @@ namespace Client.Main.Scenes
                             float fileProgress = fileSize.HasValue ? (float)receivedBytes / fileSize.Value : 0;
                             float totalProgress = totalSize > 0 ? (float)downloadedBytes / totalSize : 0;
 
-                            _statusText = $"Downloading assets... {downloadedFiles}/{totalFiles} ({(totalProgress * 100):F0}%) | Current: {(fileProgress * 100):F0}%";
+                            // _statusText = $"Downloading assets... {downloadedFiles}/{totalFiles} ({(totalProgress * 100):F0}%) | Current: {(fileProgress * 100):F0}%";
+                            _statusText = $"Downloading assets... {downloadedFiles}/{totalFiles} | Current: {(fileProgress * 100):F0}%";
                             _statusLabel.Text = _statusText;
                         }
                     }
@@ -293,7 +296,7 @@ namespace Client.Main.Scenes
         
         
         // stract zips with progress
-        private async Task ExtractWithProgress(string zipPath, string extractPath)
+        private Task ExtractWithProgress(string zipPath, string extractPath)
         {
             using (var archive = ZipFile.OpenRead(zipPath))
             {
@@ -318,14 +321,17 @@ namespace Client.Main.Scenes
                     // Actualizar el progreso
                     extractedEntries++;
                     float progress = (float)extractedEntries / totalEntries;
-                    _statusText = $"Extracting assets {zipPath}... {progress * 100:F0}%";
                     Console.WriteLine($"Extracting assets... {progress * 100:F0}%");
-                    _statusLabel.Text = _statusText;
-
-                    // Simular un pequeño retraso para visualizar el progreso
-                    await Task.Delay(10);
+                    // _statusText = $"Extracting assets {zipPath}... {progress * 100:F0}%";
+                    // _statusLabel.Text = _statusText;
                 }
             }
+
+            // delete zip file
+            File.Delete(zipPath);
+
+            return Task.CompletedTask;
+
         }
         public override void Draw(GameTime gameTime)
         {

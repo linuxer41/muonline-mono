@@ -101,7 +101,7 @@ namespace Client.Main.Objects
             _animationController = new AnimationController(this);
         }
 
-        public override async Task Load()
+        public new virtual async Task Load()
         {
             MoveTargetPosition = Vector3.Zero;
             _previousScrollValue = MuGame.Instance.Mouse.ScrollWheelValue;
@@ -115,6 +115,33 @@ namespace Client.Main.Objects
         {
             _currentPath = null;
             MoveTargetPosition = Vector3.Zero;
+            
+            // Reset animation state to clear any stuck death animations
+            _animationController?.Reset();
+        }
+
+        /// <summary>
+        /// Immediately stops any ongoing movement for this walker.
+        /// Clears the current path and locks the movement target to the
+        /// current world position so the object stays exactly where it is.
+        /// The logical <see cref="Location"/> is also synchronized without
+        /// triggering direction changes.
+        /// </summary>
+        public void StopMovement()
+        {
+            _currentPath?.Clear();
+            _currentPath = null;
+
+            // Freeze the object at its current rendered position
+            MoveTargetPosition = Position;
+
+            // Update the logical tile position without invoking OnLocationChanged
+            _location = new Vector2(
+                (int)(Position.X / Constants.TERRAIN_SCALE),
+                (int)(Position.Y / Constants.TERRAIN_SCALE));
+
+            // Align target angle with current rotation to prevent snapping
+            _targetAngle = Angle;
         }
 
         public void OnDirectionChanged()
@@ -281,6 +308,9 @@ namespace Client.Main.Objects
         public virtual void MoveTo(Vector2 targetLocation, bool sendToServer = true)
         {
             if (World == null) return;
+            
+            // Don't allow movement if player is dead
+            if (!this.IsAlive()) return;
 
             if (this is PlayerObject player)
             {
@@ -464,7 +494,10 @@ namespace Client.Main.Objects
             Vector3 moveVector = direction * MoveSpeed * deltaTime;
 
             if (moveVector.Length() >= (TargetPosition - MoveTargetPosition).Length())
+            {
                 UpdateCameraPosition(TargetPosition);
+                _movementIntent = false;
+            }
             else
                 UpdateCameraPosition(MoveTargetPosition + moveVector);
         }
@@ -481,6 +514,9 @@ namespace Client.Main.Objects
             var cameraPosition = position + cameraOffset;
 
             Camera.Instance.FOV = 35;
+#if ANDROID
+            Camera.Instance.FOV *= Constants.ANDROID_FOV_SCALE;
+#endif
             Camera.Instance.Position = cameraPosition;
             Camera.Instance.Target = position;
         }
@@ -562,6 +598,9 @@ namespace Client.Main.Objects
                 _wasRotating = false;
             }
         }
+        
+        protected bool _movementIntent;
+        public bool MovementIntent => _movementIntent;
 
         // protected override void Dispose(bool disposing)
         // {

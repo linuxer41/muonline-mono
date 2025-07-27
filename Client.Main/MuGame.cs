@@ -44,7 +44,7 @@ namespace Client.Main
         public int Width => _graphics.PreferredBackBufferWidth;
         public int Height => _graphics.PreferredBackBufferHeight;
         public MouseState PrevMouseState { get; private set; }
-        public MouseState Mouse { get; private set; }
+        public MouseState Mouse { get; set; }
         public KeyboardState PrevKeyboard { get; private set; }
         public KeyboardState Keyboard { get; private set; }
         public TouchCollection PrevTouchState { get; private set; }
@@ -65,13 +65,16 @@ namespace Client.Main
             _graphics = new GraphicsDeviceManager(this)
             {
                 PreferredBackBufferWidth = 1280,
-                PreferredBackBufferHeight = 720
+                PreferredBackBufferHeight = 720,
+                PreferMultiSampling = Constants.MSAA_ENABLED
             };
 
 #if ANDROID || IOS
             _graphics.IsFullScreen = true;
             _graphics.SynchronizeWithVerticalRetrace = true;
-            IsFixedTimeStep = true;
+            _graphics.PreferredBackBufferWidth = Window.ClientBounds.Width;
+            _graphics.PreferredBackBufferHeight = Window.ClientBounds.Height;
+            IsFixedTimeStep = false;
             TargetElapsedTime = TimeSpan.FromMilliseconds(16.67);
 #else
             if (Constants.UNLIMITED_FPS)
@@ -82,6 +85,7 @@ namespace Client.Main
             }
 #endif
             _graphics.GraphicsProfile = GraphicsProfile.HiDef;
+            _graphics.PreferredBackBufferFormat = SurfaceFormat.Color;
             _graphics.ApplyChanges();
             Content.RootDirectory = "Content";
 
@@ -213,7 +217,9 @@ namespace Client.Main
             if (AppSettings == null || !ValidateSettings(AppSettings, bootLogger)) // Add validation
             {
                 bootLogger.LogCritical("❌ Invalid application settings found in appsettings.json. Shutting down.");
+#if !IOS
                 Exit(); // Stop the game if settings are invalid
+#endif
                 return;
             }
             bootLogger.LogInformation("✅ Configuration loaded.");
@@ -539,7 +545,17 @@ namespace Client.Main
         private void DrawFinalImageToScreen(RenderTarget2D sourceTarget)
         {
             GraphicsDevice.Clear(Color.Black);
-            GraphicsManager.Instance.Sprite.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
+
+            Effect gammaEffect = Constants.MSAA_ENABLED ? GraphicsManager.Instance.GammaCorrectionEffect : null;
+
+            GraphicsManager.Instance.Sprite.Begin(
+                SpriteSortMode.Deferred,
+                BlendState.Opaque,
+                SamplerState.LinearClamp,
+                DepthStencilState.None,
+                RasterizerState.CullNone,
+                gammaEffect);
+
             GraphicsManager.Instance.Sprite.Draw(sourceTarget, GraphicsDevice.Viewport.Bounds, Color.White);
             GraphicsManager.Instance.Sprite.End();
         }

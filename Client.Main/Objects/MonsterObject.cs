@@ -1,9 +1,11 @@
-﻿using Client.Main.Models;
+﻿using Client.Data.BMD;
+using Client.Main.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
+using System.Collections.Generic;
 using System.Linq;
 
-namespace Client.Main.Objects.Monsters
+namespace Client.Main.Objects
 {
     public abstract class MonsterObject : WalkerObject
     {
@@ -44,6 +46,10 @@ namespace Client.Main.Objects.Monsters
         public void StartDeathFade(float duration = 2f)
         {
             if (_isFading) return;
+
+            // Ensure the monster stops moving while the death animation plays
+            StopMovement();
+            Interactive = false; // prevent dead monsters from blocking selection
             _isFading = true;
             _fadeDuration = duration;
             _fadeTimer = 0f;
@@ -54,10 +60,10 @@ namespace Client.Main.Objects.Monsters
                 var stain = new Effects.BloodStainEffect
                 {
                     Position = new Vector3(Position.X, Position.Y,
-                        World.Terrain.RequestTerrainHeight(Position.X, Position.Y))
+                        World.Terrain.RequestTerrainHeight(Position.X, Position.Y) + 60f)
                 };
-                World.Objects.Add(stain);
-                _ = stain.Load(); //TODO: BLOOD
+                //World.Objects.Add(stain);
+                //_ = stain.Load(); //TODO: BLOOD
             }
         }
 
@@ -204,6 +210,58 @@ namespace Client.Main.Objects.Monsters
             }
         }
 
-        protected ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
+        protected static BMDTextureAction[] BuildActionArray(
+            BMD srcModel,
+            int dstCount,
+            IReadOnlyDictionary<int, int> map)
+        {
+            var actions = new BMDTextureAction[dstCount];
+            foreach (var kv in map)
+            {
+                int dst = kv.Key;
+                int src = kv.Value;
+                if (src >= 0 && src < srcModel.Actions.Length)
+                    actions[dst] = srcModel.Actions[src];
+            }
+            return actions;
+        }
+
+        protected static BMDTextureBone[] BuildBoneArray(
+            BMD srcModel,
+            int actionCount,
+            IReadOnlyDictionary<int, int> map)
+        {
+            var bones = new BMDTextureBone[srcModel.Bones.Length];
+
+            for (int i = 0; i < bones.Length; i++)
+            {
+                var src = srcModel.Bones[i];
+                if (ReferenceEquals(src, BMDTextureBone.Dummy))
+                {
+                    bones[i] = BMDTextureBone.Dummy;
+                    continue;
+                }
+
+                var matrices = new BMDBoneMatrix[actionCount];
+                foreach (var kv in map)
+                {
+                    int dst = kv.Key;
+                    int srcIdx = kv.Value;
+                    if (srcIdx >= 0 && srcIdx < src.Matrixes.Length)
+                        matrices[dst] = src.Matrixes[srcIdx];
+                }
+
+                bones[i] = new BMDTextureBone
+                {
+                    Name = src.Name,
+                    Parent = src.Parent,
+                    Matrixes = matrices
+                };
+            }
+
+            return bones;
+        }
+
+        protected new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
     }
 }

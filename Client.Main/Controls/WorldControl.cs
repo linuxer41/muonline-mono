@@ -79,6 +79,8 @@ namespace Client.Main.Controls
         public TerrainControl Terrain { get; }
 
         public short WorldIndex { get; private set; }
+        
+        public bool EnableShadows { get; protected set; } = true;
 
         public ChildrenCollection<WorldObject> Objects { get; private set; }
             = new ChildrenCollection<WorldObject>(null);
@@ -147,6 +149,9 @@ namespace Client.Main.Controls
                 var capReader = new CAPReader();
                 var data = await capReader.Load(capPath);
                 Camera.Instance.FOV = data.CameraFOV;
+#if ANDROID
+                Camera.Instance.FOV *= Constants.ANDROID_FOV_SCALE;
+#endif
                 Camera.Instance.Position = data.CameraPosition;
                 Camera.Instance.Target = data.HeroPosition;
             }

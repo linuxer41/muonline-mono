@@ -230,8 +230,8 @@ namespace Client.Main.Scenes
                     case ClientConnectionState.RequestingConnectionInfo:
                     case ClientConnectionState.ReceivedConnectionInfo:
                     case ClientConnectionState.ConnectingToGameServer:
-                        hideAll = true;
-                        _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true");
+                        showLoginDialog = _loginDialog?.Visible == true;
+                        _logger.LogDebug("HandleConnectionStateChange: Keeping login dialog visible during connection");
                         break;
                     case ClientConnectionState.ConnectedToGameServer:
                         showLoginDialog = true;
@@ -271,13 +271,17 @@ namespace Client.Main.Scenes
                             msg.Closed += (s, e) =>
                             {
                                 _logger.LogInformation("Closing game after connection lost message.");
+#if !IOS
                                 MuGame.ScheduleOnMainThread(() => MuGame.Instance.Exit());
+#endif
                             };
                         }
                         else
                         {
                             _logger.LogError("Failed to show MessageWindow for connection lost. Exiting game directly.");
+#if !IOS
                             MuGame.ScheduleOnMainThread(() => MuGame.Instance.Exit());
+#endif
                         }
                     }
                 }
@@ -352,7 +356,7 @@ namespace Client.Main.Scenes
         }
 
         private void HandleCharacterListReceived(object sender,
-            List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
+            List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters)
         {
             MuGame.ScheduleOnMainThread(() =>
             {
@@ -508,6 +512,13 @@ namespace Client.Main.Scenes
 
             // UI visibility will be handled by HandleConnectionStateChange when state changes to RequestingConnectionInfo
             _ = _networkManager.RequestGameServerConnectionAsync(e.Index);
+
+            // On Android the state change might be delayed; show the dialog immediately
+            if (_loginDialog != null)
+            {
+                _loginDialog.Visible = true;
+                _loginDialog.FocusUsername();
+            }
         }
 
         // --- Helper Methods ---

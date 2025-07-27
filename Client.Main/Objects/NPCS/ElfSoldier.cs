@@ -11,18 +11,24 @@ using Microsoft.Extensions.Logging;
 namespace Client.Main.Objects.NPCS
 {
     [NpcInfo(257, "Elf Soldier")]
-    public class ElfSoldier : CompositeNPCObject
+    public class ElfSoldier : NPCObject
     {
         private new readonly ILogger<ElfSoldier> _logger;
-
+        private WingObject _wings;
         public ElfSoldier()
         {
             _logger = AppLoggerFactory?.CreateLogger<ElfSoldier>();
+
+            _wings = new WingObject
+            {
+                BlendMesh = 0,
+                BlendMeshState = Microsoft.Xna.Framework.Graphics.BlendState.Additive
+            };
+            Children.Add(_wings);
         }
 
         public override async Task Load()
         {
-            // 1. Ładujemy model animacji (szkielet) do właściwości Model w klasie bazowej
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             if (Model == null)
             {
@@ -31,22 +37,20 @@ namespace Client.Main.Objects.NPCS
                 return;
             }
 
-            await SetBodyPartsAsync("Player/", "HelmElf", "ArmorElf", "PantElf", "GloveElf", "BootElf", 5);
+            await SetBodyPartsAsync("Player/", "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale", 25);
 
-            if (this.Wings != null)
-            {
-                this.Wings.Type = 403;
-                this.Wings.Hidden = false;
-                this.Wings.LinkParentAnimation = false;
-            }
-            else
-            {
-                _logger?.LogWarning("ElfSoldier: obiekt 'Wings' jest null i nie można go ustawić.");
-            }
+            // Set item enhancement level +11 for all equipment parts
+            Helm.ItemLevel = 11;
+            Armor.ItemLevel = 11;
+            Pants.ItemLevel = 11;
+            Gloves.ItemLevel = 11;
+            Boots.ItemLevel = 11;
+
+            _wings.Model = await BMDLoader.Instance.Prepare("Item/Wing04.bmd");
 
             await base.Load();
 
-            CurrentAction = (int)PlayerAction.StopFlying;
+            CurrentAction = (int)PlayerAction.PlayerStopFly;
             Scale = 1.0f;
 
             var currentBBox = BoundingBoxLocal;

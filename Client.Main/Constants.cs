@@ -242,7 +242,7 @@ namespace Client.Main
             SHOW_DEBUG_PANEL = true;
 
 #if WINDOWS
-            DataPath = @"D:\MU_Red_1_20_61_Full\Data";
+            DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
 #endif
         }
 #endif

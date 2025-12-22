@@ -473,7 +473,7 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
             MuGame.ScheduleOnMainThread(() => MuGame.Instance?.ApplyGraphicsOptions());
         }
 
-        private void ApplyQualityPreset(GraphicsQualityPreset preset)
+        private void ApplyQualityPreset(GraphicsQualityPreset preset, Action onComplete = null)
         {
             MuGame.ScheduleOnMainThread(() =>
             {
@@ -481,6 +481,7 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 GraphicsQualityManager.ApplyPreset(preset, adapter, _logger);
                 MuGame.Instance?.ApplyGraphicsOptions();
                 GraphicsManager.Instance?.UpdateRenderScale();
+                onComplete?.Invoke();
             });
 
             if (MuGame.AppSettings?.Graphics != null)
@@ -719,7 +720,16 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 {
                     AddOption("Draw Bounding Boxes", () => Constants.DRAW_BOUNDING_BOXES, value => Constants.DRAW_BOUNDING_BOXES = value, ref currentY, OptionRowHeight);
                     AddOption("Draw Bounding Boxes (Interactives)", () => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES, value => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES = value, ref currentY, OptionRowHeight);
-                    AddOption("Draw Grass", () => Constants.DRAW_GRASS, value => Constants.DRAW_GRASS = value, ref currentY, OptionRowHeight);
+                    AddOption("Draw Grass", () => Constants.DRAW_GRASS, value =>
+                    {
+                        Constants.DRAW_GRASS = value;
+                        if (value)
+                        {
+                            // When enabling grass, ensure textures are loaded
+                            var scene = MuGame.Instance?.ActiveScene as BaseScene;
+                            scene?.World?.Terrain?.ReloadGrassIfNeeded();
+                        }
+                    }, ref currentY, OptionRowHeight);
                     AddOption("Low Quality Switch", () => Constants.ENABLE_LOW_QUALITY_SWITCH, value => Constants.ENABLE_LOW_QUALITY_SWITCH = value, ref currentY, OptionRowHeight);
                     AddOption("Low Quality in Login", () => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE, value => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = value, ref currentY, OptionRowHeight);
                 });
@@ -731,20 +741,20 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 {
                     AddOption("Auto (Detect)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Auto, value =>
                     {
-                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Auto);
-                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Auto, RefreshOptions);
+                    }, ref currentY, OptionRowHeight);
                     AddOption("Low (0.75x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Low, value =>
                     {
-                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Low);
-                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Low, RefreshOptions);
+                    }, ref currentY, OptionRowHeight);
                     AddOption("Medium (1.0x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Medium, value =>
                     {
-                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Medium);
-                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Medium, RefreshOptions);
+                    }, ref currentY, OptionRowHeight);
                     AddOption("High (2.0x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.High, value =>
                     {
-                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.High);
-                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.High, RefreshOptions);
+                    }, ref currentY, OptionRowHeight);
                 });
             }
 

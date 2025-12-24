@@ -170,6 +170,9 @@ namespace Client.Main
             return ShadowQuality.Ultra;
         }
 
+        // Model format
+        public static bool USE_GLB_MODELS = true; // Set to true to use GLB models instead of BMD
+
         // Paths
         public static string DataPath;
         public static string DataPathUrl = "http://192.168.55.220/Data.zip";

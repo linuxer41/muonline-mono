@@ -55,16 +55,18 @@ namespace Client.Data.BMD
 
         private void DecryptBufferIfNeeded(byte[] buffer, byte version)
         {
+            // BMD files may be encrypted depending on version (12 uses FileCryptor, 15 uses LEACrypto).
+            // GLB files are not encrypted.
             if (version is not 12 and not 15) return;
 
             var size = BitConverter.ToInt32(buffer, 4);
             var enc = new byte[size];
             Array.Copy(buffer, 8, enc, 0, size);
-            
-            var dec = version == 12 
-                ? FileCryptor.Decrypt(enc) 
+
+            var dec = version == 12
+                ? FileCryptor.Decrypt(enc)
                 : LEACrypto.Decrypt(enc);
-            
+
             Array.Copy(dec, 0, buffer, 4, size);
         }
 

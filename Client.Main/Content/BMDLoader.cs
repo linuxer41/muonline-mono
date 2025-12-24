@@ -1,4 +1,6 @@
-﻿using Client.Data.BMD;
+using Client.Data.BMD;
+using Client.Data.GLB;
+using System.Linq;
 using Client.Main.Graphics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
@@ -20,7 +22,8 @@ namespace Client.Main.Content
     {
         public static BMDLoader Instance { get; } = new BMDLoader();
 
-        private readonly BMDReader _reader = new();
+        private readonly BMDReader _bmdReader = new();
+        private readonly GLBReader _glbReader = new();
         private readonly Dictionary<string, Task<BMD>> _bmds = [];
         private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
         private Dictionary<string, Dictionary<int, string>> _blendingConfig;
@@ -242,7 +245,18 @@ namespace Client.Main.Content
                     return null;
                 }
 
-                var asset = await _reader.Load(path);
+                BMD asset;
+                if (Constants.USE_GLB_MODELS)
+                {
+                    // replace .bmd with .glb
+                    path = path.Replace(".bmd", ".glb", StringComparison.OrdinalIgnoreCase);
+                    var glbModel = await _glbReader.Load(path);
+                    asset = ConvertGLBToBMD(glbModel);
+                }
+                else
+                {
+                    asset = await _bmdReader.Load(path);
+                }
 
                 // for custom blending from json
                 var relativePath = Path.GetRelativePath(Constants.DataPath, path).Replace("\\", "/");
@@ -278,6 +292,7 @@ namespace Client.Main.Content
                     {
                         fullPath = Path.Combine("Item", mesh.TexturePath);
                     }
+                    Console.WriteLine($"Loading texture: {fullPath}");
                     if (texturePathMap.TryAdd(mesh.TexturePath.ToLowerInvariant(), fullPath))
                         tasks.Add(TextureLoader.Instance.Prepare(fullPath));
                 }
@@ -561,7 +576,7 @@ namespace Client.Main.Content
                 var buffer = new byte[stream.Length];
                 await stream.ReadExactlyAsync(buffer, 0, (int)stream.Length);
 
-                var asset = _reader.ReadFromBuffer(buffer);
+                var asset = _bmdReader.ReadFromBuffer(buffer);
 
                 // for custom blending from json
                 var relativePath = originalPath.Replace("\\", "/");
@@ -663,6 +678,51 @@ namespace Client.Main.Content
             _bufferCacheState.Clear();
             _indexInitialized.Clear();
             _indexIs16Bit.Clear();
+        }
+
+        private BMD ConvertGLBToBMD(GLBModel glbModel)
+        {
+            return new BMD
+            {
+                Version = glbModel.Version,
+                Name = glbModel.Name,
+                Meshes = glbModel.Meshes.Select(m => new BMDTextureMesh
+                {
+                    Vertices = m.Vertices.Select(v => new BMDTextureVertex { Node = v.Node, Position = v.Position }).ToArray(),
+                    Normals = m.Normals.Select(n => new BMDTextureNormal { Node = n.Node, Normal = n.Normal, BindVertex = n.BindVertex }).ToArray(),
+                    TexCoords = m.TexCoords.Select(t => new BMDTexCoord { U = t.U, V = t.V }).ToArray(),
+                    Triangles = m.Triangles.Select(t => new BMDTriangle
+                    {
+                        Polygon = t.Polygon,
+                        VertexIndex = t.VertexIndex,
+                        NormalIndex = t.NormalIndex,
+                        TexCoordIndex = t.TexCoordIndex,
+                        LightMapCoord = t.LightMapCoord.Select(l => new BMDTexCoord { U = l.U, V = l.V }).ToArray(),
+                        LightMapIndexes = t.LightMapIndexes
+                    }).ToArray(),
+                    Texture = m.Texture,
+                    TexturePath = m.TexturePath,
+                    BlendingMode = m.BlendingMode
+                }).ToArray(),
+                Bones = glbModel.Bones.Select(b => new BMDTextureBone
+                {
+                    Name = b.Name,
+                    Parent = b.Parent,
+                    Matrixes = b.Matrixes.Select(m => new BMDBoneMatrix
+                    {
+                        Position = m.Position,
+                        Rotation = m.Rotation,
+                        Quaternion = m.Quaternion
+                    }).ToArray()
+                }).ToArray(),
+                Actions = glbModel.Actions.Select(a => new BMDTextureAction
+                {
+                    NumAnimationKeys = a.NumAnimationKeys,
+                    LockPositions = a.LockPositions,
+                    Positions = a.Positions,
+                    PlaySpeed = a.PlaySpeed
+                }).ToArray()
+            };
         }
     }
 

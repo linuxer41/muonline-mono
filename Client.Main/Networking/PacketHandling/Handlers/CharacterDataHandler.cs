@@ -1168,6 +1168,24 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                 Core.Utilities.SkillDatabase.GetSkillName(skillId),
                                 targetId);
                         }
+
+                        // Spawn skill visual effect via registry
+                        if (activeScene.World is WalkableWorldControl world)
+                        {
+                            var effectContext = new Objects.Effects.Skills.SkillEffectContext
+                            {
+                                Caster = activeScene.Hero,
+                                TargetId = targetId,
+                                SkillId = skillId,
+                                World = world
+                            };
+
+                            if (Objects.Effects.Skills.SkillVisualEffectRegistry.TrySpawn(skillId, effectContext, out var effect))
+                            {
+                                world.Objects.Add(effect!);
+                                _ = effect!.Load();
+                            }
+                        }
                     }
                     else
                     {
@@ -1231,6 +1249,24 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             // No specific animation - skill uses generic magic/attack animation
                             _logger.LogDebug("Skill {SkillId} ({SkillName}) uses generic animation",
                                 skillId, Core.Utilities.SkillDatabase.GetSkillName(skillId));
+                        }
+
+                        // Spawn skill visual effect via registry (area skills included)
+                        if (activeScene.World is WalkableWorldControl world)
+                        {
+                            var effectContext = new Objects.Effects.Skills.SkillEffectContext
+                            {
+                                Caster = activeScene.Hero,
+                                TargetId = 0,
+                                SkillId = skillId,
+                                World = world
+                            };
+
+                            if (Objects.Effects.Skills.SkillVisualEffectRegistry.TrySpawn(skillId, effectContext, out var effect))
+                            {
+                                world.Objects.Add(effect!);
+                                _ = effect!.Load();
+                            }
                         }
                     }
                     else

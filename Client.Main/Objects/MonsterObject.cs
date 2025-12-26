@@ -23,6 +23,11 @@ namespace Client.Main.Objects
         public bool Blood { get; set; } = true;
 
         /// <summary>
+        /// Last target id received from server animation packets (used for attack effects).
+        /// </summary>
+        public ushort LastAttackTargetId { get; internal set; }
+
+        /// <summary>
         /// Set of mesh indices that should NOT use blending (equivalent to NoneBlendMesh = true in original code).
         /// </summary>
         public HashSet<int> NoneBlendMeshes { get; set; } = new HashSet<int>();
@@ -65,10 +70,10 @@ namespace Client.Main.Objects
                 var stain = new Effects.BloodStainEffect
                 {
                     Position = new Vector3(Position.X, Position.Y,
-                        World.Terrain.RequestTerrainHeight(Position.X, Position.Y) + 60f)
+                        World.Terrain.RequestTerrainHeight(Position.X, Position.Y) + Effects.BloodStainEffect.GroundOffset)
                 };
-                //World.Objects.Add(stain);
-                //_ = stain.Load(); //TODO: BLOOD
+                World.Objects.Add(stain);
+                _ = stain.Load();
             }
         }
 
@@ -87,6 +92,14 @@ namespace Client.Main.Objects
             if (_isFading)
             {
                 RenderShadow = false;
+                // Also disable shadows for all equipment (weapons, shields, etc.)
+                foreach (var child in Children)
+                {
+                    if (child is ModelObject modelChild)
+                    {
+                        modelChild.RenderShadow = false;
+                    }
+                }
                 _fadeTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
                 float p = MathHelper.Clamp(_fadeTimer / _fadeDuration, 0f, 1f);
 
